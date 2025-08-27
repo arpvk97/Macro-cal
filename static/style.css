@@ -106,3 +106,5 @@ button.ghost{background:transparent;color:var(--text)}
   .grid-2{grid-template-columns:1fr}
 }
 .card.info { border-left: 4px solid #6c8cff; }
+.actions .ghost { border:1px dashed var(--stroke); }
+

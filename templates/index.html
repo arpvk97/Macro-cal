@@ -4,16 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Macro Trade-off Calculator</title>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-  <div class="container">
-    <header>
+  <header class="hero">
+    <div class="hero__content">
       <h1>Macro Trade-off Calculator</h1>
-      <p>Enter macros on top. Output shows verdict and why.</p>
-    </header>
+      <p>Enter macros. The engine scores quality and explains the callouts.</p>
+    </div>
+  </header>
 
+  <main class="container">
     <section class="card">
+      <h2 class="card__title">Inputs</h2>
       <form method="POST" class="grid-form">
         <div class="field"><label>Serving g</label><input type="number" step="0.01" name="serving_g" required></div>
         <div class="field"><label>Calories kcal</label><input type="number" step="0.01" name="calories" required></div>
@@ -32,11 +37,23 @@
     </section>
 
     {% if result %}
-    <section class="card output">
-      <h2>Verdict: <span class="pill {{ result.verdict | lower }}">{{ result.verdict }}</span></h2>
+    <section class="card">
+      <div class="verdict-banner {{ result.verdict | lower }}">
+        <div class="verdict-text">
+          <span class="badge">{{ result.verdict }}</span>
+          <h3>
+            {% if result.verdict == 'Good' %}Optimized macro profile
+            {% elif result.verdict == 'Okay' %}Reasonable trade-off
+            {% else %}Not macro-efficient
+            {% endif %}
+          </h3>
+          <p>Protein density, sugar share of carbs, and saturated fat share drive this verdict.</p>
+        </div>
+      </div>
+
       <div class="grid-2">
-        <div>
-          <h3>Per gram</h3>
+        <div class="panel">
+          <h4>Per gram</h4>
           <ul class="kv">
             <li><span>kcal per g</span><b>{{ '%.3f' % result.per_gram.kcal_per_g if result.per_gram.kcal_per_g is not none else '' }}</b></li>
             <li><span>protein per g</span><b>{{ '%.3f' % result.per_gram.protein_per_g if result.per_gram.protein_per_g is not none else '' }}</b></li>
@@ -48,16 +65,75 @@
             <li><span>sodium mg per g</span><b>{{ '%.3f' % result.per_gram.sodium_mg_per_g if result.per_gram.sodium_mg_per_g is not none else '' }}</b></li>
           </ul>
         </div>
-        <div>
-          <h3>Why or watchouts</h3>
+
+        <div class="panel">
+          <h4>Quality metrics</h4>
+
+          <div class="meter">
+            <div class="meter__label">
+              <span>Protein per 100 kcal</span>
+              <b>{{ '%.2f' % result.quality.protein_per_100kcal_g if result.quality.protein_per_100kcal_g is not none else '' }} g</b>
+            </div>
+            {% set p = (result.quality.protein_per_100kcal_g or 0) * (100/14) %}
+            <div class="meter__bar good" style="width: {{ 0 if p<0 else (100 if p>100 else p) }}%"></div>
+            <div class="meter__target">Target 7 g+</div>
+          </div>
+
+          <div class="meter">
+            <div class="meter__label">
+              <span>Sugar percent of carbs</span>
+              <b>{{ '%.1f' % result.quality.sugar_pct_of_carbs if result.quality.sugar_pct_of_carbs is not none else '' }}%</b>
+            </div>
+            {% set s = 100 - (result.quality.sugar_pct_of_carbs or 0) %}
+            <div class="meter__bar warn" style="width: {{ 0 if s<0 else (100 if s>100 else s) }}%"></div>
+            <div class="meter__target">Keep at or under 30%</div>
+          </div>
+
+          <div class="meter">
+            <div class="meter__label">
+              <span>Sat fat percent of fat</span>
+              <b>{{ '%.1f' % result.quality.satfat_pct_of_fat if result.quality.satfat_pct_of_fat is not none else '' }}%</b>
+            </div>
+            {% set f = 100 - (result.quality.satfat_pct_of_fat or 0) %}
+            <div class="meter__bar caution" style="width: {{ 0 if f<0 else (100 if f>100 else f) }}%"></div>
+            <div class="meter__target">Keep at or under 33%</div>
+          </div>
+
+          <div class="chips">
+            <span class="chip density {{ result.quality.energy_density_flag | lower }}">{{ result.quality.energy_density_flag }} energy density</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="panel">
+          <h4>Why it qualifies</h4>
           <ul class="bullets">
-            {% for r in result.reasons %}<li>{{ r }}</li>{% endfor %}
-            {% for w in result.watchouts %}<li class="warn">{{ w }}</li>{% endfor %}
+            {% if result.reasons %}
+              {% for r in result.reasons %}<li>✅ {{ r }}</li>{% endfor %}
+            {% else %}
+              <li>—</li>
+            {% endif %}
+          </ul>
+        </div>
+        <div class="panel">
+          <h4>Watchouts</h4>
+          <ul class="bullets warn">
+            {% if result.watchouts %}
+              {% for w in result.watchouts %}<li>⚠️ {{ w }}</li>{% endfor %}
+            {% else %}
+              <li>—</li>
+            {% endif %}
           </ul>
         </div>
       </div>
+
     </section>
     {% endif %}
-  </div>
+  </main>
+
+  <footer class="footer">
+    <p>Scoring rules: protein per 100 kcal 7 g+, sugar share of carbs 30 percent or lower, sat fat share 33 percent or lower.</p>
+  </footer>
 </body>
 </html>

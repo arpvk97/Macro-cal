@@ -8,10 +8,9 @@
   <!-- Fonts & CSS -->
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-  <!-- use url_for to avoid stale caches; bump v number when you change CSS -->
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=7">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=8">
 
-  <!-- Tesseract.js OCR (no account needed) + fallback -->
+  <!-- Tesseract.js OCR with fallback -->
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script>
     if (typeof window.Tesseract === "undefined") {
@@ -26,7 +25,7 @@
   <header class="hero">
     <div class="hero__content">
       <h1>Macro Trade-off Calculator</h1>
-      <p>Enter macros or scan a nutrition label and get a clear verdict with reasons and watchouts.</p>
+      <p>Enter macros or scan a nutrition label. Get a verdict with reasons and watchouts.</p>
     </div>
   </header>
 
@@ -35,14 +34,14 @@
     <section class="card info">
       <h2 class="card__title">How this works</h2>
       <ul class="bullets">
-        <li>Fill in serving grams, calories, and macros or tap <b>Scan label</b> to auto-fill.</li>
-        <li>Verdict is based on 3 rules: protein ≥ 7 g per 100 kcal; sugar ≤ 30% of carbs; sat fat ≤ 33% of fat.</li>
-        <li>Outputs show per-gram metrics, energy density, reasons, and watchouts.</li>
+        <li>Fill serving g, calories, and macros. Or tap Scan label to auto-fill.</li>
+        <li>Rules: protein ≥ 7 g per 100 kcal, sugar ≤ 30 percent of carbs, sat fat ≤ 33 percent of fat.</li>
+        <li>Outputs show per gram metrics and energy density with clear reasons and watchouts.</li>
       </ul>
     </section>
 
     <!-- Inputs -->
-    <section class="card">
+    <section class="card" id="inputsCard">
       <h2 class="card__title">Inputs</h2>
       <form method="POST" class="grid-form" id="macroForm">
         <div class="field"><label>Serving g</label><input type="number" step="0.01" name="serving_g" required></div>
@@ -55,14 +54,15 @@
         <div class="field"><label>Sat Fat g</label><input type="number" step="0.01" name="satfat" required></div>
         <div class="field"><label>Sodium mg</label><input type="number" step="0.01" name="sodium" required></div>
 
-        <!-- Scanner controls -->
+        <!-- Scanner controls: label opens camera reliably -->
         <div class="actions" style="justify-content:flex-start; gap:12px; margin-top:4px">
-          <button type="button" id="scanBtn" class="ghost">Scan label</button>
-          <!-- hidden picker; capture opens back camera on phones -->
+          <label for="labelInput" class="ghost" style="display:inline-block; padding:10px 14px; border:1px dashed var(--stroke); border-radius:10px; cursor:pointer">
+            Scan label
+          </label>
           <input type="file" id="labelInput" accept="image/*" capture="environment" style="display:none">
+          <span id="scanStatus" style="font-size:12px; color:var(--muted)"></span>
         </div>
 
-        <!-- Submit / Reset -->
         <div class="actions">
           <button type="submit">Evaluate</button>
           <button type="reset" class="ghost">Reset</button>
@@ -72,7 +72,7 @@
 
     {% if result %}
     <!-- Results -->
-    <section class="card">
+    <section class="card" id="resultsCard">
       <div class="verdict-banner {{ result.verdict | lower }}">
         <div class="verdict-text">
           <span class="badge">{{ result.verdict }}</span>
@@ -167,134 +167,121 @@
   </main>
 
   <footer class="footer">
-    <p>Not medical advice, experimental tool. Beta tool:feedback welcome.</p>
+    <p>Scoring rules: protein per 100 kcal 7 g+, sugar share of carbs ≤ 30 percent, sat fat share ≤ 33 percent. Beta tool. Feedback welcome.</p>
     <div class="feedback-cta">
-  <a id="feedbackLink" class="btn-outline" href="https://forms.gle/37pZWrzMRR4S9cNd7" target="_blank" rel="noopener">
-    Share quick feedback
-  </a>
-</div>
+      <a class="btn-outline" href="https://forms.gle/G7b1qVGvNYQTid4VA" target="_blank" rel="noopener">Share quick feedback</a>
+    </div>
   </footer>
 
-  <!-- Reset behavior: clear verdict card on Reset -->
+  <!-- Reset: clear inputs and remove only the results card -->
   <script>
     document.getElementById('macroForm')?.addEventListener('reset', (e) => {
       e.target.querySelectorAll('input').forEach(i => i.value = '');
-      const verdictCard = document.querySelector('.card + .card');
-      if (verdictCard) verdictCard.remove();
+      const rc = document.getElementById('resultsCard');
+      if (rc) rc.remove();
     });
   </script>
 
-  <!-- Scanner script (camera + OCR + auto-fill) -->
+  <!-- Scanner: label-triggered picker + preprocessing + OCR + auto-fill -->
   <script>
   (function(){
-    const frm       = document.getElementById('macroForm');
-    const scanBtn   = document.getElementById('scanBtn');
-    const fileInput = document.getElementById('labelInput');
+    const frm        = document.getElementById('macroForm');
+    const fileInput  = document.getElementById('labelInput');
+    const scanStatus = document.getElementById('scanStatus');
 
-    if (!frm || !scanBtn || !fileInput) {
-      console.error("Scanner init failed: form or elements missing");
-      return;
+    if (!frm || !fileInput) return;
+
+    function status(msg){ if (scanStatus) scanStatus.textContent = msg || ''; }
+    function toNum(s){ if(!s) return null; s=s.replace(',', '.').replace(/[^\d.]/g,''); const v=parseFloat(s); return Number.isFinite(v)?v:null; }
+    function setVal(name,val){ const el=frm.querySelector(`[name="${name}"]`); if(el && val!=null) el.value = val; }
+
+    // Preprocess image on canvas: resize, grayscale, contrast
+    async function preprocessImage(file, maxW=1600){
+      const [img, url] = await new Promise((res,rej)=>{
+        const i = new Image();
+        i.onload = ()=>res([i, i.src]);
+        i.onerror = rej;
+        i.src = URL.createObjectURL(file);
+      });
+      const scale = Math.min(1, maxW / img.width);
+      const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+
+      const data = ctx.getImageData(0,0,w,h);
+      const d = data.data;
+      const contrast = 1.25, intercept = 128*(1-contrast);
+      for(let p=0;p<d.length;p+=4){
+        const r=d[p], g=d[p+1], b=d[p+2];
+        let y = 0.2126*r + 0.7152*g + 0.0722*b;
+        y = y*contrast + intercept;
+        y = y<0?0:y>255?255:y;
+        d[p]=d[p+1]=d[p+2]=y;
+      }
+      ctx.putImageData(data,0,0);
+      return canvas;
     }
 
-    // Utilities
-    const FIELDS = ['serving_g','calories','protein','carbs','sugars','fibre','fat','satfat','sodium'];
+    function parseNutritionText(text){
+      const t=(text||'').toLowerCase().replace(/\s+/g,' ');
+      const out={}; let m;
 
-    function setVal(name, val) {
-      const el = frm.querySelector(`[name="${name}"]`);
-      if (el != null && val != null && val !== '') el.value = val;
-    }
-    function toNum(s) {
-      if (!s) return null;
-      s = s.replace(',', '.').replace(/[^\d.]/g, '');
-      const v = parseFloat(s);
-      return Number.isFinite(v) ? v : null;
-    }
-
-    // Parse OCR text for common nutrition fields
-    function parseNutritionText(text) {
-      const t = (text || '').toLowerCase().replace(/\s+/g, ' ');
-      const out = {};
-      let m;
-
-      // Serving size or per 100g/100ml
-      m = t.match(/serving size[^0-9]*([0-9]+(?:[.,][0-9]+)?)\s*(g|gram|grams|ml|milliliters)/)
+      // Serving size or per 100g/ml
+      m=t.match(/serving size[^0-9]*([0-9]+(?:[.,][0-9]+)?)\s*(g|gram|grams|ml|milliliters)/)
         || t.match(/per\s*100\s*(g|gram|grams|ml)/);
-      if (m) out.serving_g = m[1] ? toNum(m[1]) : 100;
+      if(m) out.serving_g = m[1] ? toNum(m[1]) : 100;
 
-      // Calories
-      m = t.match(/calories?\s*([0-9]+(?:[.,][0-9]+)?)/) || t.match(/\b(\d+)\s*kcal\b/);
-      if (m) out.calories = toNum(m[1] || m[0]);
+      // Calories / energy kcal
+      m=t.match(/calories?\s*([0-9]+(?:[.,][0-9]+)?)/) || t.match(/energy[^0-9]*([0-9]+)\s*kcal/);
+      if(m) out.calories = toNum(m[1]||m[0]);
 
       // Protein g
-      m = t.match(/protein[^0-9]*([0-9]+(?:[.,][0-9]+)?)\s*g/);
-      if (m) out.protein = toNum(m[1]);
+      m=t.match(/protein[^0-9]*([0-9]+(?:[.,][0-9]+)?)\s*g/); if(m) out.protein = toNum(m[1]);
 
       // Carbs g
-      m = t.match(/carb(?:ohydrate)?s?[^0-9]*([0-9]+(?:[.,][0-9]+)?)\s*g/);
-      if (m) out.carbs = toNum(m[1]);
+      m=t.match(/carb(?:ohydrate)?s?[^0-9]*([0-9]+(?:[.,][0-9]+)?)\s*g/); if(m) out.carbs = toNum(m[1]);
 
       // Sugars g
-      m = t.match(/sugars?[^0-9]*([0-9]+(?:[.,][0-9]+)?)\s*g/);
-      if (m) out.sugars = toNum(m[1]);
+      m=t.match(/sugars?[^0-9]*([0-9]+(?:[.,][0-9]+)?)\s*g/); if(m) out.sugars = toNum(m[1]);
 
       // Fibre g (fiber/fibre)
-      m = t.match(/fi[bh]re[^0-9]*([0-9]+(?:[.,][0-9]+)?)\s*g/);
-      if (m) out.fibre = toNum(m[1]);
+      m=t.match(/fi[bh]re[^0-9]*([0-9]+(?:[.,][0-9]+)?)\s*g/); if(m) out.fibre = toNum(m[1]);
 
       // Fat g
-      m = t.match(/fat[^0-9]*([0-9]+(?:[.,][0-9]+)?)\s*g/);
-      if (m) out.fat = toNum(m[1]);
+      m=t.match(/fat[^0-9]*([0-9]+(?:[.,][0-9]+)?)\s*g/); if(m) out.fat = toNum(m[1]);
 
       // Saturated fat g
-      m = t.match(/sat(?:urated)?\s*fat[^0-9]*([0-9]+(?:[.,][0-9]+)?)\s*g/);
-      if (m) out.satfat = toNum(m[1]);
+      m=t.match(/sat(?:urated)?\s*fat[^0-9]*([0-9]+(?:[.,][0-9]+)?)\s*g/); if(m) out.satfat = toNum(m[1]);
 
       // Sodium mg
-      m = t.match(/sodium[^0-9]*([0-9]+(?:[.,][0-9]+)?)\s*mg/);
-      if (m) out.sodium = toNum(m[1]);
+      m=t.match(/sodium[^0-9]*([0-9]+(?:[.,][0-9]+)?)\s*mg/); if(m) out.sodium = toNum(m[1]);
 
       return out;
     }
 
-    async function ensureTesseractReady() {
-      if (typeof window.Tesseract !== "undefined") return;
-      await new Promise(r => setTimeout(r, 500));
-      if (typeof window.Tesseract === "undefined") {
-        throw new Error("Tesseract failed to load (network or content blocker).");
+    async function ensureTesseract(){
+      for (let i=0; i<10; i++){
+        if (window.Tesseract) return;
+        await new Promise(r=>setTimeout(r,200));
       }
+      throw new Error("Tesseract failed to load");
     }
 
-    async function ocrImage(file) {
-      await ensureTesseractReady();
-      const worker = await Tesseract.createWorker('eng');
-      try {
-        const { data } = await worker.recognize(file);
-        return data.text || '';
-      } finally {
-        await worker.terminate();
-      }
-    }
-
-    // Wire up UI
-    scanBtn.addEventListener('click', () => {
-      try { fileInput.click(); }
-      catch (e) {
-        console.error("Scanner: file input click failed", e);
-        alert("Browser blocked camera. Open in Safari/Chrome directly.");
-      }
-    });
-
-    fileInput.addEventListener('change', async (e) => {
+    fileInput.addEventListener('change', async (e)=>{
       const file = e.target.files && e.target.files[0];
-      if (!file) return;
+      if(!file) return;
 
-      // Basic progress cue
-      scanBtn.disabled = true;
-      const oldLabel = scanBtn.textContent;
-      scanBtn.textContent = "Scanning…";
-
-      try {
-        const text = await ocrImage(file);
+      try{
+        status("Preprocessing…");
+        const canvas = await preprocessImage(file);
+        status("Scanning…");
+        await ensureTesseract();
+        const { data:{ text } } = await Tesseract.recognize(canvas, 'eng');
+        status("Parsing…");
         const parsed = parseNutritionText(text);
 
         setVal('serving_g', parsed.serving_g);
@@ -307,15 +294,15 @@
         setVal('satfat',    parsed.satfat);
         setVal('sodium',    parsed.sodium);
 
-        const missing = FIELDS.filter(k => parsed[k] == null);
-        alert(missing.length ? ('Scan done — check: ' + missing.join(', ')) : 'Scan complete. All fields filled.');
-      } catch (err) {
+        const missing = ['serving_g','calories','protein','carbs','sugars','fibre','fat','satfat','sodium'].filter(k=>parsed[k]==null);
+        status(missing.length ? ("Scan done. Check: " + missing.join(", ")) : "Scan complete.");
+        setTimeout(()=>status(''), 2500);
+      }catch(err){
         console.error(err);
-        alert('Could not read the label. Use good light, keep panel flat, try again.');
-      } finally {
-        fileInput.value = '';
-        scanBtn.disabled = false;
-        scanBtn.textContent = oldLabel;
+        status("Scan failed. Try better light and flat label.");
+        alert("Could not read the label. Use good light, keep panel flat, try again.");
+      }finally{
+        fileInput.value=''; // allow reselecting same image
       }
     });
   })();

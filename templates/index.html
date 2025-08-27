@@ -7,7 +7,126 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 </head>
+  <script>
+(function(){
+  const fileInput = document.getElementById('labelInput');
+  const scanBtn   = document.getElementById('scanBtn');
+  const frm       = document.querySelector('form');
+
+  const FIELDS = {
+    serving_g:  'serving_g',
+    calories:   'calories',
+    protein:    'protein',
+    carbs:      'carbs',
+    sugars:     'sugars',
+    fibre:      'fibre',
+    fat:        'fat',
+    satfat:     'satfat',
+    sodium:     'sodium'
+  };
+
+  function setVal(name, val) {
+    const el = frm.querySelector(`[name="${name}"]`);
+    if (el && val != null) el.value = val;
+  }
+  function toNum(s) {
+    if (!s) return null;
+    s = s.replace(',', '.').replace(/[^\d.]/g, '');
+    const v = parseFloat(s);
+    return Number.isFinite(v) ? v : null;
+  }
+
+  function parseNutritionText(text) {
+    const t = (text || '').toLowerCase().replace(/\s+/g, ' ');
+    const out = {};
+
+    // Serving size
+    let m = t.match(/serving size[^0-9]*([0-9]+(?:[.,][0-9]+)?)\s*(g|gram|grams|ml|milliliters)/)
+          || t.match(/per\s*100\s*(g|gram|grams|ml)/);
+    if (m) out.serving_g = m[1] ? toNum(m[1]) : 100;
+
+    // Calories
+    m = t.match(/calories?\s*([0-9]+(?:[.,][0-9]+)?)/) || t.match(/\b(\d+)\s*kcal\b/);
+    if (m) out.calories = toNum(m[1] || m[0]);
+
+    // Protein g
+    m = t.match(/protein[^0-9]*([0-9]+(?:[.,][0-9]+)?)\s*g/);
+    if (m) out.protein = toNum(m[1]);
+
+    // Carbs g
+    m = t.match(/carb(?:ohydrate)?s?[^0-9]*([0-9]+(?:[.,][0-9]+)?)\s*g/);
+    if (m) out.carbs = toNum(m[1]);
+
+    // Sugars g
+    m = t.match(/sugars?[^0-9]*([0-9]+(?:[.,][0-9]+)?)\s*g/);
+    if (m) out.sugars = toNum(m[1]);
+
+    // Fibre g
+    m = t.match(/fi[bh]re[^0-9]*([0-9]+(?:[.,][0-9]+)?)\s*g/);
+    if (m) out.fibre = toNum(m[1]);
+
+    // Fat g
+    m = t.match(/fat[^0-9]*([0-9]+(?:[.,][0-9]+)?)\s*g/);
+    if (m) out.fat = toNum(m[1]);
+
+    // Sat fat g
+    m = t.match(/sat(?:urated)?\s*fat[^0-9]*([0-9]+(?:[.,][0-9]+)?)\s*g/);
+    if (m) out.satfat = toNum(m[1]);
+
+    // Sodium mg
+    m = t.match(/sodium[^0-9]*([0-9]+(?:[.,][0-9]+)?)\s*mg/);
+    if (m) out.sodium = toNum(m[1]);
+
+    return out;
+  }
+
+  async function ocrImage(file) {
+    const worker = await Tesseract.createWorker('eng');
+    try {
+      const { data } = await worker.recognize(file);
+      return data.text || '';
+    } finally {
+      await worker.terminate();
+    }
+  }
+
+  scanBtn.addEventListener('click', () => fileInput.click());
+
+  fileInput.addEventListener('change', async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    try {
+      const text = await ocrImage(file);
+      const parsed = parseNutritionText(text);
+
+      setVal(FIELDS.serving_g, parsed.serving_g);
+      setVal(FIELDS.calories,  parsed.calories);
+      setVal(FIELDS.protein,   parsed.protein);
+      setVal(FIELDS.carbs,     parsed.carbs);
+      setVal(FIELDS.sugars,    parsed.sugars);
+      setVal(FIELDS.fibre,     parsed.fibre);
+      setVal(FIELDS.fat,       parsed.fat);
+      setVal(FIELDS.satfat,    parsed.satfat);
+      setVal(FIELDS.sodium,    parsed.sodium);
+
+      const missing = Object.keys(FIELDS).filter(k => parsed[k] == null);
+      if (missing.length) {
+        alert('Scan done. Check these fields: ' + missing.join(', '));
+      } else {
+        alert('Scan complete. All fields filled.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Could not read the label. Try a brighter photo and keep the panel flat.');
+    } finally {
+      fileInput.value = ''; // allow re-selecting the same image
+    }
+  });
+})();
+</script>
+
 <body>
   <header class="hero">
     <div class="hero__content">
@@ -38,6 +157,11 @@
         <div class="field"><label>Fat g</label><input type="number" step="0.01" name="fat" required></div>
         <div class="field"><label>Sat Fat g</label><input type="number" step="0.01" name="satfat" required></div>
         <div class="field"><label>Sodium mg</label><input type="number" step="0.01" name="sodium" required></div>
+        <div class="actions" style="justify-content:flex-start; gap:12px; margin-top:4px">
+  <button type="button" id="scanBtn" class="ghost">Scan label</button>
+  <input type="file" id="labelInput" accept="image/*" capture="environment" style="display:none">
+</div>
+
         <div class="actions">
           <button type="submit">Evaluate</button>
           <button type="reset" class="ghost">Reset</button>

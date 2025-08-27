@@ -132,8 +132,18 @@
     {% endif %}
   </main>
 
-  <footer class="footer">
+    <footer class="footer">
     <p>Scoring rules: protein per 100 kcal 7 g+, sugar share of carbs 30 percent or lower, sat fat share 33 percent or lower.</p>
   </footer>
+
+  <script>
+    document.querySelector('form').addEventListener('reset', (e) => {
+      // Clear inputs immediately
+      e.target.querySelectorAll('input').forEach(i => i.value = '');
+      // Hide the verdict card if present
+      const verdictCard = document.querySelector('.card + .card');
+      if (verdictCard) verdictCard.remove();
+    });
+  </script>
 </body>
 </html>

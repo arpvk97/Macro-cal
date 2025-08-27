@@ -105,3 +105,4 @@ button.ghost{background:transparent;color:var(--text)}
   .grid-form{grid-template-columns:1fr}
   .grid-2{grid-template-columns:1fr}
 }
+.card.info { border-left: 4px solid #6c8cff; }

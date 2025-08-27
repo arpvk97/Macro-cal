@@ -107,4 +107,10 @@ button.ghost{background:transparent;color:var(--text)}
 }
 .card.info { border-left: 4px solid #6c8cff; }
 .actions .ghost { border:1px dashed var(--stroke); }
+.feedback-cta { margin-top: 8px }
+.btn-outline{
+  display:inline-block; padding:8px 12px; border:1px solid var(--stroke);
+  border-radius:10px; text-decoration:none; color:var(--text); background:#0c1225;
+}
+.btn-outline:hover{ filter:brightness(1.1) }
 

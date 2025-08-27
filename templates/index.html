@@ -7,7 +7,16 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/style.css">
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <!-- Tesseract.js with fallback -->
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script>
+  // Fallback to unpkg if jsDelivr fails
+  if (typeof window.Tesseract === "undefined") {
+    var s = document.createElement("script");
+    s.src = "https://unpkg.com/tesseract.js@5/dist/tesseract.min.js";
+    document.head.appendChild(s);
+  }
+</script>
 </head>
   <script>
 (function(){

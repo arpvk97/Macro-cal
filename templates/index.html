@@ -18,69 +18,75 @@
   }
 </script>
 </head>
-  <script>
+ <script>
 (function(){
-  const fileInput = document.getElementById('labelInput');
-  const scanBtn   = document.getElementById('scanBtn');
+  // Guard: ensure DOM elements exist
   const frm       = document.querySelector('form');
+  const scanBtn   = document.getElementById('scanBtn');
+  const fileInput = document.getElementById('labelInput');
 
-  const FIELDS = {
-    serving_g:  'serving_g',
-    calories:   'calories',
-    protein:    'protein',
-    carbs:      'carbs',
-    sugars:     'sugars',
-    fibre:      'fibre',
-    fat:        'fat',
-    satfat:     'satfat',
-    sodium:     'sodium'
-  };
-
-  function setVal(name, val) {
-    const el = frm.querySelector(`[name="${name}"]`);
-    if (el && val != null) el.value = val;
+  if (!frm || !scanBtn || !fileInput) {
+    console.error("Scanner: required elements not found");
+    return;
   }
+
+  // Quick smoke test: verify click handler is live
+  scanBtn.addEventListener('click', () => {
+    try {
+      fileInput.click(); // opens camera/gallery
+    } catch (e) {
+      console.error("Scanner: file input click failed", e);
+      alert("Your browser blocked camera access. Try opening the site directly in Safari or Chrome.");
+    }
+  });
+
+  // Utilities
   function toNum(s) {
     if (!s) return null;
     s = s.replace(',', '.').replace(/[^\d.]/g, '');
     const v = parseFloat(s);
     return Number.isFinite(v) ? v : null;
   }
+  function setVal(name, val) {
+    const el = frm.querySelector(`[name="${name}"]`);
+    if (el && val != null) el.value = val;
+  }
 
   function parseNutritionText(text) {
     const t = (text || '').toLowerCase().replace(/\s+/g, ' ');
     const out = {};
+    let m;
 
     // Serving size
-    let m = t.match(/serving size[^0-9]*([0-9]+(?:[.,][0-9]+)?)\s*(g|gram|grams|ml|milliliters)/)
-          || t.match(/per\s*100\s*(g|gram|grams|ml)/);
+    m = t.match(/serving size[^0-9]*([0-9]+(?:[.,][0-9]+)?)\s*(g|gram|grams|ml|milliliters)/)
+      || t.match(/per\s*100\s*(g|gram|grams|ml)/);
     if (m) out.serving_g = m[1] ? toNum(m[1]) : 100;
 
     // Calories
     m = t.match(/calories?\s*([0-9]+(?:[.,][0-9]+)?)/) || t.match(/\b(\d+)\s*kcal\b/);
     if (m) out.calories = toNum(m[1] || m[0]);
 
-    // Protein g
+    // Protein
     m = t.match(/protein[^0-9]*([0-9]+(?:[.,][0-9]+)?)\s*g/);
     if (m) out.protein = toNum(m[1]);
 
-    // Carbs g
+    // Carbs
     m = t.match(/carb(?:ohydrate)?s?[^0-9]*([0-9]+(?:[.,][0-9]+)?)\s*g/);
     if (m) out.carbs = toNum(m[1]);
 
-    // Sugars g
+    // Sugars
     m = t.match(/sugars?[^0-9]*([0-9]+(?:[.,][0-9]+)?)\s*g/);
     if (m) out.sugars = toNum(m[1]);
 
-    // Fibre g
+    // Fibre (fiber/fibre)
     m = t.match(/fi[bh]re[^0-9]*([0-9]+(?:[.,][0-9]+)?)\s*g/);
     if (m) out.fibre = toNum(m[1]);
 
-    // Fat g
+    // Fat
     m = t.match(/fat[^0-9]*([0-9]+(?:[.,][0-9]+)?)\s*g/);
     if (m) out.fat = toNum(m[1]);
 
-    // Sat fat g
+    // Saturated fat
     m = t.match(/sat(?:urated)?\s*fat[^0-9]*([0-9]+(?:[.,][0-9]+)?)\s*g/);
     if (m) out.satfat = toNum(m[1]);
 
@@ -91,7 +97,17 @@
     return out;
   }
 
+  async function ensureTesseractReady() {
+    // Wait a tick if fallback script was injected
+    if (typeof window.Tesseract !== "undefined") return;
+    await new Promise(r => setTimeout(r, 500));
+    if (typeof window.Tesseract === "undefined") {
+      throw new Error("Tesseract failed to load. Check network or content blockers.");
+    }
+  }
+
   async function ocrImage(file) {
+    await ensureTesseractReady();
     const worker = await Tesseract.createWorker('eng');
     try {
       const { data } = await worker.recognize(file);
@@ -101,41 +117,42 @@
     }
   }
 
-  scanBtn.addEventListener('click', () => fileInput.click());
-
   fileInput.addEventListener('change', async (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
+
     try {
+      // Optional: show a basic progress cue
+      scanBtn.disabled = true;
+      scanBtn.textContent = "Scanning...";
+
       const text = await ocrImage(file);
       const parsed = parseNutritionText(text);
 
-      setVal(FIELDS.serving_g, parsed.serving_g);
-      setVal(FIELDS.calories,  parsed.calories);
-      setVal(FIELDS.protein,   parsed.protein);
-      setVal(FIELDS.carbs,     parsed.carbs);
-      setVal(FIELDS.sugars,    parsed.sugars);
-      setVal(FIELDS.fibre,     parsed.fibre);
-      setVal(FIELDS.fat,       parsed.fat);
-      setVal(FIELDS.satfat,    parsed.satfat);
-      setVal(FIELDS.sodium,    parsed.sodium);
+      setVal('serving_g', parsed.serving_g);
+      setVal('calories',  parsed.calories);
+      setVal('protein',   parsed.protein);
+      setVal('carbs',     parsed.carbs);
+      setVal('sugars',    parsed.sugars);
+      setVal('fibre',     parsed.fibre);
+      setVal('fat',       parsed.fat);
+      setVal('satfat',    parsed.satfat);
+      setVal('sodium',    parsed.sodium);
 
-      const missing = Object.keys(FIELDS).filter(k => parsed[k] == null);
-      if (missing.length) {
-        alert('Scan done. Check these fields: ' + missing.join(', '));
-      } else {
-        alert('Scan complete. All fields filled.');
-      }
+      const missing = ['serving_g','calories','protein','carbs','sugars','fibre','fat','satfat','sodium']
+        .filter(k => parsed[k] == null);
+      alert(missing.length ? ('Scan done. Check: ' + missing.join(', ')) : 'Scan complete.');
     } catch (err) {
       console.error(err);
-      alert('Could not read the label. Try a brighter photo and keep the panel flat.');
+      alert('Could not read the label. Ensure good light, flat label, and try again.');
     } finally {
-      fileInput.value = ''; // allow re-selecting the same image
+      scanBtn.disabled = false;
+      scanBtn.textContent = "Scan label";
+      fileInput.value = ''; // allow reselecting same image
     }
   });
 })();
 </script>
-
 <body>
   <header class="hero">
     <div class="hero__content">

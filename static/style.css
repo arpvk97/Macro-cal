@@ -1,0 +1,107 @@
+:root{
+  --bg:#0b1020; --text:#e8ecf3; --muted:#a8b2c4;
+  --card:#12182a; --stroke:#1d2741;
+  --good:#2ecc71; --okay:#f1c40f; --limit:#e74c3c;
+  --accent:#6c8cff; --accent-2:#b26cff;
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+
+/* Hero banner */
+.hero{
+  background: radial-gradient(1200px 500px at 10% -10%, rgba(108,140,255,.28), transparent),
+              radial-gradient(900px 420px at 90% -10%, rgba(178,108,255,.22), transparent),
+              linear-gradient(120deg, #0b1020 0%, #0e1530 100%);
+  border-bottom:1px solid var(--stroke);
+}
+.hero__content{
+  max-width:1080px;margin:0 auto;padding:32px 20px 28px 20px;
+}
+.hero h1{margin:0 0 8px 0;font-size:28px;font-weight:800;letter-spacing:.3px}
+.hero p{margin:0;color:var(--muted)}
+
+/* Layout */
+.container{max-width:1080px;margin:18px auto;padding:0 20px}
+.card{
+  background:var(--card);border:1px solid var(--stroke);
+  border-radius:14px;padding:18px 16px;margin-bottom:16px;
+  box-shadow:0 10px 30px rgba(0,0,0,.25);
+}
+.card__title{margin:0 0 12px 0;font-size:16px;color:var(--muted);font-weight:600}
+
+/* Form */
+.grid-form{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.field{display:flex;flex-direction:column;gap:6px}
+label{font-size:12px;color:var(--muted)}
+input{
+  background:#0c1225;color:var(--text);border:1px solid var(--stroke);
+  padding:10px 12px;border-radius:10px;outline:none
+}
+input:focus{border-color:var(--accent)}
+.actions{grid-column:1/-1;display:flex;gap:8px;margin-top:6px}
+button{
+  background:var(--accent);color:white;border:1px solid var(--stroke);
+  padding:10px 14px;border-radius:10px;cursor:pointer;font-weight:600
+}
+button.ghost{background:transparent;color:var(--text)}
+
+/* Verdict banner */
+.verdict-banner{
+  border:1px solid var(--stroke);border-radius:12px;margin:-4px -4px 14px -4px;
+  padding:14px 14px 12px 14px;background:linear-gradient(180deg, rgba(255,255,255,.03), transparent);
+}
+.verdict-banner.good{outline:2px solid rgba(46,204,113,.35)}
+.verdict-banner.okay{outline:2px solid rgba(241,196,15,.35)}
+.verdict-banner.limit{outline:2px solid rgba(231,76,60,.35)}
+.badge{
+  display:inline-block;padding:4px 10px;border-radius:999px;margin-bottom:4px;
+  background:#0c1225;border:1px solid var(--stroke);font-weight:700
+}
+.verdict-banner.good .badge{color:var(--good);border-color:rgba(46,204,113,.45)}
+.verdict-banner.okay .badge{color:var(--okay);border-color:rgba(241,196,15,.45)}
+.verdict-banner.limit .badge{color:var(--limit);border-color:rgba(231,76,60,.45)}
+.verdict-text h3{margin:4px 0 4px 0}
+
+/* Panels & grids */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.panel{background:#0f152a;border:1px dashed var(--stroke);border-radius:10px;padding:12px}
+.panel h4{margin:0 0 8px 0}
+
+.kv{list-style:none;margin:0;padding:0}
+.kv li{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dotted var(--stroke)}
+.kv li span{color:var(--muted)}
+
+/* Meters */
+.meter{margin:10px 0 16px 0;position:relative}
+.meter__label{display:flex;justify-content:space-between;margin-bottom:6px}
+.meter__bar{
+  height:10px;border-radius:999px;background:linear-gradient(90deg, var(--accent), var(--accent-2));
+  width:0%;transition:width .4s ease;border:1px solid var(--stroke)
+}
+.meter__bar.warn{background:linear-gradient(90deg, #71d67a, #f1c40f)}
+.meter__bar.caution{background:linear-gradient(90deg, #8bd4ff, #ff9f43)}
+.meter__target{font-size:11px;color:var(--muted);margin-top:4px}
+
+/* Chips */
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.chip{
+  padding:6px 10px;border-radius:999px;border:1px solid var(--stroke);font-size:12px;background:#0c1225
+}
+.chip.density.low{color:#8bd4ff}
+.chip.density.moderate{color:#f1c40f}
+.chip.density.high{color:#ff8b8b}
+
+/* Lists */
+.bullets{margin:8px 0 0 18px}
+.warn li{color:#ffb7b7}
+
+/* Footer */
+.footer{max-width:1080px;margin:0 auto 40px auto;padding:8px 20px;color:var(--muted);font-size:12px}
+
+/* Responsive */
+@media(max-width:780px){
+  .grid-form{grid-template-columns:1fr}
+  .grid-2{grid-template-columns:1fr}
+}
